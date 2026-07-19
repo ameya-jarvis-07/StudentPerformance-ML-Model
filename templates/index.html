@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Performance Predictor | ML Dashboard</title>
+  <meta name="description" content="Predict a student's academic performance using demographic factors with a Random Forest ML model." />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ============================================================
+       CSS VARIABLES & RESET
+    ============================================================ */
+    :root {
+      --bg-dark:       #060914;
+      --bg-card:       rgba(255, 255, 255, 0.04);
+      --bg-card-hover: rgba(255, 255, 255, 0.07);
+      --border:        rgba(255, 255, 255, 0.10);
+      --border-focus:  rgba(139, 92, 246, 0.70);
+      --text-primary:  #f1f5f9;
+      --text-secondary:#94a3b8;
+      --text-muted:    #64748b;
+      --accent-purple: #8b5cf6;
+      --accent-blue:   #3b82f6;
+      --accent-cyan:   #06b6d4;
+      --accent-pink:   #ec4899;
+      --green:         #22c55e;
+      --amber:         #f59e0b;
+      --orange:        #f97316;
+      --red:           #ef4444;
+      --gradient-1:    linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --gradient-2:    linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      --gradient-hero: linear-gradient(160deg, #0f0c29, #302b63, #24243e);
+      --shadow-glow:   0 0 40px rgba(139, 92, 246, 0.25);
+      --radius-sm:     8px;
+      --radius-md:     14px;
+      --radius-lg:     20px;
+      --radius-xl:     28px;
+      --transition:    0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ============================================================
+       ANIMATED BACKGROUND
+    ============================================================ */
+    .bg-orbs {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: 0.18;
+      animation: orb-drift 18s ease-in-out infinite alternate;
+    }
+    .orb-1 { width: 600px; height: 600px; background: #8b5cf6; top: -200px; left: -200px; animation-delay: 0s; }
+    .orb-2 { width: 500px; height: 500px; background: #3b82f6; bottom: -150px; right: -150px; animation-delay: -5s; }
+    .orb-3 { width: 400px; height: 400px; background: #06b6d4; top: 40%; left: 55%; animation-delay: -10s; }
+    @keyframes orb-drift {
+      0%   { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(60px, 40px) scale(1.1); }
+    }
+
+    /* ============================================================
+       LAYOUT
+    ============================================================ */
+    .app-wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 0 24px 60px;
+    }
+
+    /* ============================================================
+       HEADER / HERO
+    ============================================================ */
+    .hero {
+      text-align: center;
+      padding: 64px 20px 48px;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.35);
+      color: #c4b5fd;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 6px 16px;
+      border-radius: 999px;
+      margin-bottom: 28px;
+    }
+    .hero-badge .dot {
+      width: 7px; height: 7px;
+      background: #8b5cf6;
+      border-radius: 50%;
+      animation: pulse-dot 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.7); }
+    }
+    .hero h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(2rem, 5vw, 3.4rem);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #e2d9f3 0%, #8b5cf6 40%, #3b82f6 80%, #06b6d4 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 18px;
+    }
+    .hero p {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      max-width: 560px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    /* ============================================================
+       STAT STRIP (top summary cards)
+    ============================================================ */
+    .stat-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin-bottom: 36px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px 22px;
+      backdrop-filter: blur(12px);
+      transition: background var(--transition), transform var(--transition);
+    }
+    .stat-card:hover {
+      background: var(--bg-card-hover);
+      transform: translateY(-2px);
+    }
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.8rem;
+      font-weight: 700;
+      line-height: 1;
+      background: linear-gradient(135deg, #c4b5fd, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .stat-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* ============================================================
+       MAIN GRID
+    ============================================================ */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ============================================================
+       GLASS CARD
+    ============================================================ */
+    .glass-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      backdrop-filter: blur(18px);
+      padding: 32px;
+    }
+    .card-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-title-icon {
+      width: 34px; height: 34px;
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      background: rgba(139, 92, 246, 0.18);
+    }
+
+    /* ============================================================
+       FORM STYLES
+    ============================================================ */
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    .form-select {
+      width: 100%;
+      padding: 13px 18px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      appearance: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+      transition: border-color var(--transition), background var(--transition), box-shadow var(--transition);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 42px;
+    }
+    .form-select:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      background-color: rgba(139, 92, 246, 0.08);
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+    }
+    .form-select option {
+      background: #1e1b4b;
+      color: var(--text-primary);
+    }
+
+    /* ============================================================
+       PREDICT BUTTON
+    ============================================================ */
+    .btn-predict {
+      width: 100%;
+      padding: 15px 24px;
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      border: none;
+      border-radius: var(--radius-md);
+      color: #fff;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .btn-predict::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+      opacity: 0;
+      transition: opacity var(--transition);
+    }
+    .btn-predict:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(139,92,246,0.45); }
+    .btn-predict:hover::before { opacity: 1; }
+    .btn-predict:active { transform: translateY(0); }
+    .btn-predict:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* Loading spinner inside button */
+    .spinner {
+      display: none;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-predict.loading .btn-text { display: none; }
+    .btn-predict.loading .spinner { display: block; }
+
+    /* ============================================================
+       RESULT PANEL
+    ============================================================ */
+    .result-panel {
+      display: none;
+      margin-top: 24px;
+      padding: 24px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      animation: fade-slide-in 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    @keyframes fade-slide-in {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .result-score-wrap {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .result-tier-badge {
+      display: inline-block;
+      padding: 5px 18px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .result-score-number {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 4.5rem;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+    .result-score-label {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Score gauge bar */
+    .gauge-wrap { margin: 18px 0 8px; }
+    .gauge-track {
+      height: 10px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+    .gauge-fill {
+      height: 100%;
+      border-radius: 999px;
+      width: 0%;
+      transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .gauge-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 5px;
+    }
+
+    /* Percentile pill */
+    .percentile-row {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 14px 0;
+    }
+    .info-pill {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 16px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .info-pill strong { color: var(--text-primary); }
+
+    /* Advice box */
+    .advice-box {
+      background: rgba(139, 92, 246, 0.08);
+      border: 1px solid rgba(139, 92, 246, 0.25);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #c4b5fd;
+      line-height: 1.6;
+      margin-top: 14px;
+    }
+
+    /* ============================================================
+       RIGHT COLUMN — charts
+    ============================================================ */
+    .charts-col {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .chart-container {
+      position: relative;
+      height: 220px;
+    }
+    .chart-container-sm {
+      position: relative;
+      height: 180px;
+    }
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 680px) { .charts-row { grid-template-columns: 1fr; } }
+
+    /* ============================================================
+       COMPARISON TABLE
+    ============================================================ */
+    .compare-table-wrap {
+      overflow-x: auto;
+      margin-top: 0;
+    }
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .compare-table th {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .compare-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      color: var(--text-secondary);
+    }
+    .compare-table td:last-child {
+      font-weight: 600;
+      color: var(--text-primary);
+      text-align: right;
+    }
+    .compare-table tr:last-child td { border-bottom: none; }
+    .compare-table tr:hover td { background: rgba(255,255,255,0.03); }
+
+    /* ============================================================
+       ERROR STATE
+    ============================================================ */
+    .error-box {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #fca5a5;
+      margin-top: 16px;
+      display: none;
+    }
+
+    /* ============================================================
+       FOOTER
+    ============================================================ */
+    .footer {
+      text-align: center;
+      padding: 48px 0 24px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .footer a { color: #8b5cf6; text-decoration: none; }
+
+    /* ============================================================
+       TIER COLOUR VARIANTS
+    ============================================================ */
+    .tier-excellent { background: rgba(34,197,94,0.15); color: #86efac; border: 1px solid rgba(34,197,94,0.3); }
+    .tier-good      { background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3); }
+    .tier-average   { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+    .tier-below     { background: rgba(249,115,22,0.15); color: #fdba74; border: 1px solid rgba(249,115,22,0.3); }
+    .tier-risk      { background: rgba(239,68,68,0.15);  color: #fca5a5; border: 1px solid rgba(239,68,68,0.3);  }
+
+    /* ============================================================
+       SCROLLBAR
+    ============================================================ */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
+    ::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.4); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- Animated background orbs -->
+<div class="bg-orbs" aria-hidden="true">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<div class="app-wrapper">
+
+  <!-- ── HERO ─────────────────────────────────────────────── -->
+  <header class="hero">
+    <div class="hero-badge"><span class="dot"></span> Random Forest ML Model</div>
+    <h1>Student Performance<br>Predictor</h1>
+    <p>
+      Predict a student's overall academic final score using only demographic and
+      educational background factors — powered by a trained machine learning model.
+    </p>
+  </header>
+
+  <!-- ── STAT STRIP ─────────────────────────────────────────── -->
+  <div class="stat-strip" id="stat-strip">
+    <div class="stat-card">
+      <div class="stat-label">Total Students</div>
+      <div class="stat-value" id="stat-total">—</div>
+      <div class="stat-sub">in training dataset</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Dataset Average</div>
+      <div class="stat-value" id="stat-avg">—</div>
+      <div class="stat-sub">mean final score / 100</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Highest Score</div>
+      <div class="stat-value" id="stat-max">—</div>
+      <div class="stat-sub">maximum final score</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Lowest Score</div>
+      <div class="stat-value" id="stat-min">—</div>
+      <div class="stat-sub">minimum final score</div>
+    </div>
+  </div>
+
+  <!-- ── MAIN GRID ───────────────────────────────────────────── -->
+  <div class="main-grid">
+
+    <!-- ── LEFT: Prediction Form ─────────────────────────────── -->
+    <div>
+      <div class="glass-card">
+        <div class="card-title">
+          <div class="card-title-icon">🎓</div>
+          Predict Student Score
+        </div>
+
+        <form id="predict-form" novalidate>
+
+          <!-- Gender -->
+          <div class="form-group">
+            <label class="form-label" for="gender">Gender</label>
+            <select class="form-select" id="gender" name="gender" required>
+              <option value="" disabled selected>Select gender…</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+            </select>
+          </div>
+
+          <!-- Race / Ethnicity -->
+          <div class="form-group">
+            <label class="form-label" for="race_ethnicity">Race / Ethnicity</label>
+            <select class="form-select" id="race_ethnicity" name="race_ethnicity" required>
+              <option value="" disabled selected>Select group…</option>
+              <option value="group A">Group A</option>
+              <option value="group B">Group B</option>
+              <option value="group C">Group C</option>
+              <option value="group D">Group D</option>
+              <option value="group E">Group E</option>
+            </select>
+          </div>
+
+          <!-- Parental Education -->
+          <div class="form-group">
+            <label class="form-label" for="parental_education">Parental Level of Education</label>
+            <select class="form-select" id="parental_education" name="parental_education" required>
+              <option value="" disabled selected>Select education level…</option>
+              <option value="some high school">Some High School</option>
+              <option value="high school">High School</option>
+              <option value="some college">Some College</option>
+              <option value="associate's degree">Associate's Degree</option>
+              <option value="bachelor's degree">Bachelor's Degree</option>
+              <option value="master's degree">Master's Degree</option>
+            </select>
+          </div>
+
+          <!-- Lunch -->
+          <div class="form-group">
+            <label class="form-label" for="lunch">Lunch Type</label>
+            <select class="form-select" id="lunch" name="lunch" required>
+              <option value="" disabled selected>Select lunch type…</option>
+              <option value="standard">Standard</option>
+              <option value="free/reduced">Free / Reduced</option>
+            </select>
+          </div>
+
+          <!-- Test Prep -->
+          <div class="form-group">
+            <label class="form-label" for="test_prep">Test Preparation Course</label>
+            <select class="form-select" id="test_prep" name="test_prep" required>
+              <option value="" disabled selected>Select status…</option>
+              <option value="completed">Completed</option>
+              <option value="none">None</option>
+            </select>
+          </div>
+
+          <!-- Submit -->
+          <button class="btn-predict" id="predict-btn" type="submit" aria-label="Predict student score">
+            <span class="btn-text">✨ Predict Final Score</span>
+            <span class="spinner" role="status" aria-label="Loading"></span>
+          </button>
+
+        </form>
+
+        <!-- Error box -->
+        <div class="error-box" id="error-box" role="alert"></div>
+
+        <!-- Result panel (shown after prediction) -->
+        <div class="result-panel" id="result-panel">
+          <div class="result-score-wrap">
+            <div class="result-tier-badge" id="result-badge">—</div>
+            <div class="result-score-number" id="result-score">—</div>
+            <div class="result-score-label">Predicted Final Score / 100</div>
+          </div>
+
+          <!-- Gauge bar -->
+          <div class="gauge-wrap">
+            <div class="gauge-track">
+              <div class="gauge-fill" id="gauge-fill"></div>
+            </div>
+            <div class="gauge-labels">
+              <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+            </div>
+          </div>
+
+          <!-- Info pills -->
+          <div class="percentile-row">
+            <span class="info-pill">Percentile: <strong id="result-percentile">—</strong></span>
+            <span class="info-pill">Model: <strong>Random Forest</strong></span>
+          </div>
+
+          <!-- Advice -->
+          <div class="advice-box" id="result-advice"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RIGHT: Charts Dashboard ──────────────────────────── -->
+    <div class="charts-col">
+
+      <!-- Score Distribution Chart -->
+      <div class="glass-card">
+        <div class="card-title">
+          <div class="card-title-icon">📊</div>
+          Score Distribution (Dataset)
+        </div>
+        <div class="chart-container">
+          <canvas id="chart-distribution" aria-label="Score distribution histogram"></canvas>
+        </div>
+      </div>
+
+      <!-- Two-column charts row -->
+      <div class="charts-row">
+        <div class="glass-card">
+          <div class="card-title" style="font-size:0.95rem;">
+            <div class="card-title-icon" style="width:28px;height:28px;font-size:13px;">🍽️</div>
+            Lunch Type vs Score
+          </div>
+          <div class="chart-container-sm">
+            <canvas id="chart-lunch" aria-label="Score by lunch type"></canvas>
+          </div>
+        </div>
+        <div class="glass-card">
+          <div class="card-title" style="font-size:0.95rem;">
+            <div class="card-title-icon" style="width:28px;height:28px;font-size:13px;">📝</div>
+            Test Prep vs Score
+          </div>
+          <div class="chart-container-sm">
+            <canvas id="chart-prep" aria-label="Score by test prep"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Race/Ethnicity chart -->
+      <div class="glass-card">
+        <div class="card-title">
+          <div class="card-title-icon">🌍</div>
+          Avg Score by Race / Ethnicity Group
+        </div>
+        <div class="chart-container">
+          <canvas id="chart-race" aria-label="Score by race/ethnicity"></canvas>
+        </div>
+      </div>
+
+      <!-- Parental education table -->
+      <div class="glass-card">
+        <div class="card-title">
+          <div class="card-title-icon">🎓</div>
+          Avg Score by Parental Education
+        </div>
+        <div class="compare-table-wrap">
+          <table class="compare-table" id="parental-table" aria-label="Average scores by parental education level">
+            <thead>
+              <tr>
+                <th>Education Level</th>
+                <th>Avg Final Score</th>
+              </tr>
+            </thead>
+            <tbody id="parental-table-body">
+              <tr><td colspan="2" style="text-align:center;color:var(--text-muted);">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+    <!-- end right col -->
+
+  </div>
+  <!-- end main-grid -->
+
+  <footer class="footer">
+    <p>Student Performance Predictor &nbsp;·&nbsp; Random Forest Regression Model &nbsp;·&nbsp;
+       Built with <a href="https://flask.palletsprojects.com" target="_blank" rel="noopener">Flask</a> +
+       <a href="https://scikit-learn.org" target="_blank" rel="noopener">scikit-learn</a>
+    </p>
+  </footer>
+
+</div><!-- end app-wrapper -->
+
+
+<script>
+/* ============================================================
+   CHART.JS GLOBAL DEFAULTS
+============================================================ */
+Chart.defaults.color           = '#94a3b8';
+Chart.defaults.borderColor     = 'rgba(255,255,255,0.07)';
+Chart.defaults.font.family     = "'Inter', sans-serif";
+Chart.defaults.font.size       = 12;
+Chart.defaults.plugins.legend.labels.boxWidth  = 12;
+Chart.defaults.plugins.legend.labels.padding   = 16;
+Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(15,12,41,0.92)';
+Chart.defaults.plugins.tooltip.borderColor     = 'rgba(139,92,246,0.4)';
+Chart.defaults.plugins.tooltip.borderWidth     = 1;
+Chart.defaults.plugins.tooltip.padding         = 12;
+Chart.defaults.plugins.tooltip.titleColor      = '#e2d9f3';
+Chart.defaults.plugins.tooltip.bodyColor       = '#94a3b8';
+Chart.defaults.plugins.tooltip.cornerRadius    = 8;
+
+const PURPLE  = 'rgba(139, 92, 246, 0.85)';
+const BLUE    = 'rgba(59, 130, 246, 0.85)';
+const CYAN    = 'rgba(6, 182, 212, 0.85)';
+const AMBER   = 'rgba(245, 158, 11, 0.85)';
+const GREEN   = 'rgba(34, 197, 94, 0.85)';
+const PINK    = 'rgba(236, 72, 153, 0.85)';
+
+/* ============================================================
+   LOAD DATASET STATS & RENDER CHARTS
+============================================================ */
+let statsData = null;
+
+async function loadStats() {
+  try {
+    const res  = await fetch('/dataset-stats');
+    const data = await res.json();
+    statsData  = data;
+
+    // ── Stat strip ────────────────────────────────────────────
+    document.getElementById('stat-total').textContent = data.total_students.toLocaleString();
+    document.getElementById('stat-avg').textContent   = data.avg_final_score;
+    document.getElementById('stat-max').textContent   = data.max_final_score;
+    document.getElementById('stat-min').textContent   = data.min_final_score;
+
+    renderDistributionChart(data.score_distribution);
+    renderLunchChart(data.lunch_avg);
+    renderPrepChart(data.prep_avg);
+    renderRaceChart(data.race_avg);
+    renderParentalTable(data.parental_avg);
+
+  } catch (err) {
+    console.error('Failed to load stats:', err);
+  }
+}
+
+/* ── Score Distribution Histogram ─────────────────────────── */
+function renderDistributionChart(distData) {
+  const labels = Object.keys(distData);
+  const values = Object.values(distData);
+  const colors = [PURPLE, BLUE, CYAN, GREEN, AMBER, PINK, 'rgba(168,85,247,0.85)'];
+
+  new Chart(document.getElementById('chart-distribution'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Students',
+        data: values,
+        backgroundColor: labels.map((_, i) => colors[i % colors.length]),
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+                 tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} students` } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#64748b' } },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } }
+      }
+    }
+  });
+}
+
+/* ── Lunch Type Chart (Doughnut) ─────────────────────────── */
+function renderLunchChart(lunchData) {
+  const labels = Object.keys(lunchData).map(k => k === 'standard' ? 'Standard' : 'Free/Reduced');
+  const values = Object.values(lunchData);
+
+  new Chart(document.getElementById('chart-lunch'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: [PURPLE, AMBER],
+        borderWidth: 0,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => ` Avg ${ctx.parsed.toFixed(1)}` } }
+      }
+    }
+  });
+}
+
+/* ── Test Prep Chart (Doughnut) ──────────────────────────── */
+function renderPrepChart(prepData) {
+  const labels = Object.keys(prepData).map(k => k === 'completed' ? 'Completed' : 'None');
+  const values = Object.values(prepData);
+
+  new Chart(document.getElementById('chart-prep'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: [GREEN, PINK],
+        borderWidth: 0,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => ` Avg ${ctx.parsed.toFixed(1)}` } }
+      }
+    }
+  });
+}
+
+/* ── Race/Ethnicity Bar Chart ────────────────────────────── */
+function renderRaceChart(raceData) {
+  const labels = Object.keys(raceData).map(k => k.replace('group ', 'Group '));
+  const values = Object.values(raceData);
+  const palette = [PURPLE, BLUE, CYAN, GREEN, AMBER];
+
+  new Chart(document.getElementById('chart-race'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Avg Final Score',
+        data: values,
+        backgroundColor: palette,
+        borderRadius: 8,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: { legend: { display: false },
+                 tooltip: { callbacks: { label: ctx => ` Avg ${ctx.parsed.x.toFixed(2)}` } } },
+      scales: {
+        x: {
+          min: 50, max: 80,
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#64748b' }
+        },
+        y: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+      }
+    }
+  });
+}
+
+/* ── Parental Education Table ────────────────────────────── */
+function renderParentalTable(parentalData) {
+  const tbody = document.getElementById('parental-table-body');
+  // Sort by avg score descending
+  const sorted = Object.entries(parentalData).sort((a, b) => b[1] - a[1]);
+  tbody.innerHTML = sorted.map(([edu, avg]) => `
+    <tr>
+      <td>${capitalize(edu)}</td>
+      <td>${avg.toFixed(2)}</td>
+    </tr>
+  `).join('');
+}
+
+function capitalize(str) {
+  return str.replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/* ============================================================
+   PREDICTION FORM HANDLER
+============================================================ */
+document.getElementById('predict-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  const btn      = document.getElementById('predict-btn');
+  const errorBox = document.getElementById('error-box');
+  const panel    = document.getElementById('result-panel');
+
+  // Hide previous results and errors
+  errorBox.style.display = 'none';
+  panel.style.display    = 'none';
+
+  // Gather form values
+  const payload = {
+    gender             : document.getElementById('gender').value,
+    race_ethnicity     : document.getElementById('race_ethnicity').value,
+    parental_education : document.getElementById('parental_education').value,
+    lunch              : document.getElementById('lunch').value,
+    test_prep          : document.getElementById('test_prep').value,
+  };
+
+  // Validate all fields
+  const missing = Object.entries(payload).filter(([, v]) => !v);
+  if (missing.length > 0) {
+    showError('Please fill in all fields before predicting.');
+    return;
+  }
+
+  // Set loading state
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  try {
+    const res  = await fetch('/predict', {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      showError(data.error || 'Prediction failed. Please try again.');
+      return;
+    }
+
+    displayResult(data);
+
+  } catch (err) {
+    showError('Network error — please check that the Flask server is running.');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+});
+
+/* ── Show error ──────────────────────────────────────────── */
+function showError(msg) {
+  const box = document.getElementById('error-box');
+  box.textContent  = '⚠️  ' + msg;
+  box.style.display = 'block';
+}
+
+/* ── Display prediction result ───────────────────────────── */
+function displayResult(data) {
+  const panel = document.getElementById('result-panel');
+
+  // Tier badge
+  const badge = document.getElementById('result-badge');
+  badge.textContent = data.emoji + '  ' + data.tier;
+  badge.className   = 'result-tier-badge ' + data.tier_class;
+
+  // Score number (count-up animation)
+  const scoreEl = document.getElementById('result-score');
+  scoreEl.style.color = data.color;
+  animateCountUp(scoreEl, 0, data.score, 900);
+
+  // Gauge bar
+  const gaugeFill = document.getElementById('gauge-fill');
+  gaugeFill.style.background = `linear-gradient(90deg, ${data.color}99, ${data.color})`;
+  // Reset then animate
+  gaugeFill.style.width = '0%';
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      gaugeFill.style.width = data.score + '%';
+    });
+  });
+
+  // Percentile
+  document.getElementById('result-percentile').textContent = data.percentile + 'th';
+
+  // Advice
+  document.getElementById('result-advice').textContent = '💡  ' + data.advice;
+
+  // Show panel
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ── Count-up number animation ───────────────────────────── */
+function animateCountUp(el, from, to, duration) {
+  const start = performance.now();
+  const update = (now) => {
+    const elapsed  = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    // Ease-out cubic
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = (from + (to - from) * eased).toFixed(1);
+    if (progress < 1) requestAnimationFrame(update);
+  };
+  requestAnimationFrame(update);
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+loadStats();
+</script>
+</body>
+</html>
